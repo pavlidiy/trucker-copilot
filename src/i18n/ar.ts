@@ -48,6 +48,7 @@ export const ar: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 أرسل صورة أو PDF للـ rate con. يمكن إرسال عدة صفحات.',
     reading: '👀 أقرأ المستند…',
     unreadable: (p) => `😕 لم أستطع قراءة الصفحة ${p}، الصورة غير واضحة. صوّرها عن قرب أو أرسل PDF.`,
     continueWithout: '➡️ متابعة',

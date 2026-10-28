@@ -48,6 +48,7 @@ export const ro: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 Trimiteți o poză sau PDF cu rate con-ul. Pot fi mai multe pagini.',
     reading: '👀 Citesc documentul…',
     unreadable: (p) => `😕 Nu am putut citi pagina ${p}, poza e neclară. Fotografiați mai de aproape sau trimiteți PDF.`,
     continueWithout: '➡️ Continuă',

@@ -48,6 +48,7 @@ export const bn: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 rate con-এর ছবি বা PDF পাঠান। কয়েক পৃষ্ঠাও চলবে।',
     reading: '👀 কাগজ পড়ছি…',
     unreadable: (p) => `😕 পৃষ্ঠা ${p} পড়তে পারিনি, ছবি ঝাপসা। কাছ থেকে ছবি তুলুন বা PDF পাঠান।`,
     continueWithout: '➡️ এগিয়ে যান',

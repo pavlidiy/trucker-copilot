@@ -48,6 +48,7 @@ export const en: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 Send a photo or PDF of the rate con. Several pages are fine.',
     reading: '👀 Reading the document…',
     unreadable: (p) => `😕 I couldn't read page ${p}, the photo is blurry. Take it closer or send the PDF.`,
     continueWithout: '➡️ Continue',

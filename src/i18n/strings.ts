@@ -49,6 +49,7 @@ export interface Strings {
   };
 
   ratecon: {
+    askFile: string;
     reading: string;
     unreadable: (page: number) => string;
     continueWithout: string;

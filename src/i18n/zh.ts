@@ -46,6 +46,7 @@ export const zh: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 请发送 rate con 的照片或 PDF，可以多页。',
     reading: '👀 正在读取文件…',
     unreadable: (p) => `😕 第 ${p} 页看不清，照片模糊。请靠近重拍或发送 PDF。`,
     continueWithout: '➡️ 继续',

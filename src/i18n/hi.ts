@@ -48,6 +48,7 @@ export const hi: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 rate con की फ़ोटो या PDF भेजें। कई पेज भी चलेंगे।',
     reading: '👀 दस्तावेज़ पढ़ रहा हूँ…',
     unreadable: (p) => `😕 पेज ${p} नहीं पढ़ पाया, फ़ोटो धुँधली है। पास से फ़ोटो लें या PDF भेजें।`,
     continueWithout: '➡️ आगे बढ़ें',

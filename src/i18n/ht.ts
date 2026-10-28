@@ -48,6 +48,7 @@ export const ht: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 Voye foto oswa PDF rate con an. Plizyè paj pa gen pwoblèm.',
     reading: '👀 M ap li dokiman an…',
     unreadable: (p) => `😕 Mwen pa ka li paj ${p}, foto a twoub. Pran l pi pre oswa voye PDF la.`,
     continueWithout: '➡️ Kontinye',

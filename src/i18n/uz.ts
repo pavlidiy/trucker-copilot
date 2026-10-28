@@ -48,6 +48,7 @@ export const uz: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 Rate con rasmini yoki PDF’ini yuboring. Bir necha sahifa boʻlsa ham mayli.',
     reading: '👀 Hujjatni oʻqiyapman…',
     unreadable: (p) => `😕 ${p}-sahifani oʻqiy olmadim, rasm xira. Yaqinroqdan oling yoki PDF yuboring.`,
     continueWithout: '➡️ Davom etish',

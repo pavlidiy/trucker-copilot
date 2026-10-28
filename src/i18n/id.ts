@@ -48,6 +48,7 @@ export const id: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 Kirim foto atau PDF rate con. Boleh beberapa halaman.',
     reading: '👀 Membaca dokumen…',
     unreadable: (p) => `😕 Halaman ${p} tidak terbaca, fotonya buram. Foto lebih dekat atau kirim PDF.`,
     continueWithout: '➡️ Lanjut',

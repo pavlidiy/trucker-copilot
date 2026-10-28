@@ -19,13 +19,13 @@ const s = (ctx: Ctx): Strings => t(ctx.lang);
 // ── Onboarding ────────────────────────────────────────────────────────────────
 
 /** First message ever. Written in English plus the picker, since we don't know the language yet. */
-export function welcome(page = 0): OutgoingMessage[] {
+export function welcome(page = 0, greet = page === 0): OutgoingMessage[] {
   const e = t('en');
   const rows = LANGS.map((l) => ({ id: langId(l), title: t(l).langName }));
   const pageRows = paginate(rows, page, (next) => ({ id: langPageId(next), title: e.common.more }));
   // Rows carry each language's own name, so the body can stay short and in English.
   return [
-    ...(page === 0 ? [text(e.onboarding.welcome)] : []),
+    ...(greet ? [text(e.onboarding.welcome)] : []),
     list(`🌐 ${e.onboarding.chooseLanguage}`, e.onboarding.chooseLanguageButton, [{ rows: pageRows }]),
   ];
 }
@@ -80,6 +80,10 @@ export function mainMenu(ctx: Ctx, stage?: LoadStage): OutgoingMessage[] {
 }
 
 // ── Rate con check ───────────────────────────────────────────────────────────
+
+export function askRatecon(ctx: Ctx): OutgoingMessage[] {
+  return [text(s(ctx).ratecon.askFile)];
+}
 
 export function rateconReading(ctx: Ctx): OutgoingMessage[] {
   return [text(s(ctx).ratecon.reading)];

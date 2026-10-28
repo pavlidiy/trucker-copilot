@@ -48,6 +48,7 @@ export const tr: Strings = {
   },
 
   ratecon: {
+    askFile: '📄 Rate con’un fotoğrafını veya PDF’ini gönderin. Birkaç sayfa olabilir.',
     reading: '👀 Belgeyi okuyorum…',
     unreadable: (p) => `😕 ${p}. sayfayı okuyamadım, fotoğraf bulanık. Daha yakından çekin veya PDF gönderin.`,
     continueWithout: '➡️ Devam',

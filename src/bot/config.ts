@@ -13,6 +13,9 @@ export interface Config {
   graphVersion: string;
   supabaseUrl: string;
   supabaseServiceKey: string;
+  /** Meta Model API (Muse Spark), for reading rate cons. */
+  museApiKey: string;
+  museModel: string;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -30,5 +33,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     graphVersion: env.GRAPH_VERSION ?? 'v23.0',
     supabaseUrl: need('SUPABASE_URL'),
     supabaseServiceKey: need('SUPABASE_SERVICE_ROLE_KEY'),
+    museApiKey: need('MUSE_API_KEY'),
+    museModel: env.MUSE_MODEL ?? 'muse-spark-1.3',
   };
 }

@@ -1,14 +1,18 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { loadConfig, type Config } from './config.ts';
 import { Db } from './db.ts';
-import { route } from './router.ts';
-import { extractMessages, markReadAndTyping, sendMessage, verifySignature, type WebhookBody } from './whatsapp.ts';
+import { readRatecon } from '../ai/ratecon.ts';
+import { genericError } from '../ui/screens.ts';
+import { DEFAULT_TIME_ZONE } from '../domain/timezone.ts';
+import { route, type Services } from './router.ts';
+import { downloadMedia, extractMessages, markReadAndTyping, sendMessage, verifySignature, type WebhookBody } from './whatsapp.ts';
 
 // WhatsApp webhook server. Meta calls GET once to verify the URL, then POSTs every message.
 // We answer 200 right away and do the work after, because Meta retries slow webhooks.
 
 export function startServer(cfg: Config = loadConfig()) {
   const db = new Db(cfg);
+  const muse = { apiKey: cfg.museApiKey, model: cfg.museModel };
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -39,9 +43,22 @@ export function startServer(cfg: Config = loadConfig()) {
   async function handle(msg: Parameters<typeof route>[1]): Promise<void> {
     if (!(await db.claimMessage(msg.id))) return; // Meta retry of something we already handled
     await markReadAndTyping(cfg, msg.id);
-    const replies = await route(db, msg);
     // In order: WhatsApp shows them as separate bubbles and order matters (e.g. "copy" mode).
-    for (const out of replies) await sendMessage(cfg, msg.from, out);
+    const send = async (msgs: Awaited<ReturnType<typeof route>>) => {
+      for (const out of msgs) await sendMessage(cfg, msg.from, out);
+    };
+    const services: Services = {
+      readRatecon: async (media) => readRatecon(muse, [await downloadMedia(cfg, media.id, media.filename)]),
+      sendNow: send,
+    };
+    try {
+      await send(await route(db, msg, new Date(), services));
+    } catch (err) {
+      // Never leave the driver hanging: say something went wrong, in their language.
+      const driver = await db.getDriver(msg.from).catch(() => undefined);
+      await send(genericError({ lang: driver?.lang ?? 'en', timeZone: DEFAULT_TIME_ZONE })).catch(() => undefined);
+      throw err;
+    }
   }
 
   server.listen(cfg.port, () => console.log(`trucker-copilot listening on :${cfg.port} (POST /webhook)`));

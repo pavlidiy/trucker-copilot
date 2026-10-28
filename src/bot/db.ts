@@ -1,4 +1,4 @@
-import type { LoadStage, Place, StopKind } from '../domain/types.ts';
+import type { LoadStage, Place, RateconAnalysis, StopKind } from '../domain/types.ts';
 import type { Lang } from '../i18n/index.ts';
 import type { Config } from './config.ts';
 
@@ -29,6 +29,7 @@ export interface Load {
   stage: LoadStage;
   detention_rate_cents: number;
   free_minutes: number;
+  analysis: RateconAnalysis | null;
   created_at: string;
 }
 

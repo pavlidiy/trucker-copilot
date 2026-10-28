@@ -1,5 +1,7 @@
+import type { RateconExtract } from '../ai/ratecon.ts';
 import type { DetentionTerms } from '../domain/detention.ts';
 import { DEFAULT_TIME_ZONE, timeZoneFor } from '../domain/timezone.ts';
+import { toAnalysis } from '../domain/risks.ts';
 import type { LoadStage, LoadSummary, StopKind } from '../domain/types.ts';
 import { isLang, type Lang } from '../i18n/index.ts';
 import { ID, parseParam } from '../ui/ids.ts';
@@ -27,7 +29,15 @@ export type Store = Pick<
   | 'closeStop'
 >;
 
-export async function route(store: Store, msg: InboundMessage, now = new Date()): Promise<OutgoingMessage[]> {
+/** Outside world the router needs besides the store. Tests pass fakes. */
+export interface Services {
+  /** Downloads a photo/PDF from WhatsApp and has Muse Spark extract it. */
+  readRatecon(media: { id: string; filename?: string }): Promise<RateconExtract>;
+  /** Sends replies right away, before the slow part (e.g. "Reading the document…"). */
+  sendNow(msgs: OutgoingMessage[]): Promise<void>;
+}
+
+export async function route(store: Store, msg: InboundMessage, now = new Date(), services?: Services): Promise<OutgoingMessage[]> {
   const driver = await store.getDriver(msg.from);
   if (!driver) {
     await store.createDriver(msg.from);
@@ -43,10 +53,8 @@ export async function route(store: Store, msg: InboundMessage, now = new Date())
   if (msg.type === 'location' && msg.location) {
     return onLocation(store, driver, ctx, load, msg.location, now);
   }
-  if (msg.type === 'image' || msg.type === 'document') {
-    // Rate con / BOL reading arrives with the Muse Spark step; until then, say what the bot can do.
-    return [...screen.rateconReading(ctx), ...screen.help(ctx, load?.stage)];
-  }
+  const media = msg.image ?? msg.document;
+  if (media && services) return onRatecon(store, services, driver, ctx, { id: media.id, filename: msg.document?.filename });
   if (msg.type === 'audio') return screen.voiceNotUnderstood(ctx);
 
   const lang = action && parseParam(action, 'lang');
@@ -143,6 +151,47 @@ async function onboarding(
     default:
       return screen.welcome(0, false);
   }
+}
+
+/** A photo or PDF is read as a rate con. Muse Spark extracts, code judges, and the load is saved as "checked". */
+async function onRatecon(
+  store: Store,
+  services: Services,
+  driver: Driver,
+  ctx: screen.Ctx,
+  media: { id: string; filename?: string },
+): Promise<OutgoingMessage[]> {
+  await services.sendNow(screen.rateconReading(ctx));
+  const extract = await services.readRatecon(media);
+  if (!extract.is_rate_confirmation) return screen.askRatecon(ctx);
+
+  const analysis = toAnalysis(extract);
+  const loadNumber = extract.load_number ?? manualLoadNumber(new Date());
+  const existing = await store.getLoad(driver.wa_id, loadNumber);
+  if (!existing) {
+    await store.createLoad({
+      wa_id: driver.wa_id,
+      load_number: loadNumber,
+      stage: 'checked',
+      broker: analysis.broker || null,
+      broker_email: analysis.brokerEmail ?? null,
+      pickup: analysis.pickup,
+      delivery: analysis.delivery,
+      rate_cents: analysis.rateCents || null,
+      miles: analysis.miles || null,
+      analysis,
+      ...detentionTerms(extract),
+    });
+  }
+  return screen.rateconResult(ctx, { ...analysis, loadNumber });
+}
+
+/** The rate con's own detention terms when it states them; otherwise the table defaults apply. */
+function detentionTerms(x: RateconExtract): { free_minutes?: number; detention_rate_cents?: number } {
+  const out: { free_minutes?: number; detention_rate_cents?: number } = {};
+  if (x.detention.present && x.detention.free_hours != null) out.free_minutes = Math.round(x.detention.free_hours * 60);
+  if (x.detention.present && x.detention.amount_usd != null) out.detention_rate_cents = Math.round(x.detention.amount_usd * 100);
+  return out;
 }
 
 /** A shared location means "I'm here" when no stop is open, and "I left" when one is. */

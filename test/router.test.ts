@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Driver, Load, Stop } from '../src/bot/db.ts';
-import { route, type Store } from '../src/bot/router.ts';
+import { route, type Services, type Store } from '../src/bot/router.ts';
 import type { InboundMessage } from '../src/bot/whatsapp.ts';
 import { ID } from '../src/ui/ids.ts';
 import { render } from '../src/wa/render.ts';
+import { sample } from './fixtures.ts';
 
 /** In-memory stand-in for the Supabase tables. */
 function memoryStore() {
@@ -26,7 +27,7 @@ function memoryStore() {
     async createLoad(l) {
       const load: Load = {
         id: `load${++seq}`, broker: null, broker_email: null, pickup: null, delivery: null, rate_cents: null, miles: null,
-        detention_rate_cents: 5000, free_minutes: 120, created_at: new Date().toISOString(), ...l,
+        detention_rate_cents: 5000, free_minutes: 120, analysis: null, created_at: new Date().toISOString(), ...l,
       };
       loads.push(load);
       return load;
@@ -79,4 +80,37 @@ test('delete my data removes the driver', async () => {
   assert.match(show(await route(store, tap(ID.deleteData))), /cannot be undone/);
   await route(store, tap(ID.deleteConfirm));
   assert.equal(drivers.size, 0);
+});
+
+test('rate con photo is read, judged and saved as a checked load', async () => {
+  const { store, loads } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'en', onboarding_step: 'done' });
+  const early: string[] = [];
+  const services: Services = {
+    async readRatecon(media) { assert.equal(media.id, 'media1'); return sample(); },
+    async sendNow(msgs) { early.push(show(msgs)); },
+  };
+  const photo: InboundMessage = { from, id: `m${++n}`, timestamp: '0', type: 'image', image: { id: 'media1', mime_type: 'image/jpeg' } };
+
+  const result = show(await route(store, photo, new Date(), services));
+  assert.match(early.join(), /Reading the document/);
+  assert.match(result, /#8841207/);
+  assert.match(result, /No detention clause/);
+  assert.match(result, /Late fee \$250/);
+  assert.equal(loads[0]?.stage, 'checked');
+  assert.equal(loads[0]?.rate_cents, 215000);
+
+  assert.match(show(await route(store, tap(ID.rateconBook))), /8841207/);
+  assert.equal(loads[0]?.stage, 'booked');
+});
+
+test('a photo that is not a rate con asks for one', async () => {
+  const { store, loads } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'en', onboarding_step: 'done' });
+  const services: Services = { async readRatecon() { return sample({ is_rate_confirmation: false }); }, async sendNow() {} };
+  const selfie: InboundMessage = { from, id: `m${++n}`, timestamp: '0', type: 'image', image: { id: 'x', mime_type: 'image/jpeg' } };
+  assert.match(show(await route(store, selfie, new Date(), services)), /photo or PDF of the rate con/);
+  assert.equal(loads.length, 0);
 });

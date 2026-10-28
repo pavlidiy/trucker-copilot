@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { DocumentPart } from '../ai/ratecon.ts';
 import type { OutgoingMessage } from '../wa/types.ts';
 import type { Config } from './config.ts';
 
@@ -78,4 +79,15 @@ export async function markReadAndTyping(cfg: Config, messageId: string): Promise
       typing_indicator: { type: 'text' },
     }),
   }).catch(() => undefined); // cosmetic; never fail a reply over it
+}
+
+/** Photos and PDFs arrive as a media id: look up its short-lived URL, then fetch it with the same token. */
+export async function downloadMedia(cfg: Config, mediaId: string, filename?: string): Promise<DocumentPart> {
+  const auth = { Authorization: `Bearer ${cfg.waToken}` };
+  const meta = await fetch(`https://graph.facebook.com/${cfg.graphVersion}/${mediaId}`, { headers: auth });
+  if (!meta.ok) throw new Error(`WhatsApp media lookup failed ${meta.status}: ${await meta.text()}`);
+  const { url, mime_type } = (await meta.json()) as { url: string; mime_type: string };
+  const file = await fetch(url, { headers: auth });
+  if (!file.ok) throw new Error(`WhatsApp media download failed ${file.status}`);
+  return { mime: mime_type.split(';')[0]!.trim(), data: new Uint8Array(await file.arrayBuffer()), filename };
 }

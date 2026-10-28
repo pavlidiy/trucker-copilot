@@ -23,10 +23,10 @@ export function welcome(page = 0): OutgoingMessage[] {
   const e = t('en');
   const rows = LANGS.map((l) => ({ id: langId(l), title: t(l).langName }));
   const pageRows = paginate(rows, page, (next) => ({ id: langPageId(next), title: e.common.more }));
-  const pickerBody = LANGS.map((l) => t(l).onboarding.chooseLanguage).join(' / ');
+  // Rows carry each language's own name, so the body can stay short and in English.
   return [
     ...(page === 0 ? [text(e.onboarding.welcome)] : []),
-    list(pickerBody, e.onboarding.chooseLanguageButton, [{ rows: pageRows }]),
+    list(`🌐 ${e.onboarding.chooseLanguage}`, e.onboarding.chooseLanguageButton, [{ rows: pageRows }]),
   ];
 }
 

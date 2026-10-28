@@ -1,12 +1,31 @@
+import { ar } from './ar.ts';
+import { bn } from './bn.ts';
 import { en } from './en.ts';
+import { es } from './es.ts';
+import { fr } from './fr.ts';
+import { hi } from './hi.ts';
+import { ht } from './ht.ts';
+import { id } from './id.ts';
+import { pa } from './pa.ts';
+import { pl } from './pl.ts';
+import { pt } from './pt.ts';
+import { ro } from './ro.ts';
 import { ru } from './ru.ts';
+import { tr } from './tr.ts';
+import { uk } from './uk.ts';
+import { uz } from './uz.ts';
+import { zh } from './zh.ts';
 import type { Strings } from './strings.ts';
 
 export type { Strings } from './strings.ts';
 
 // Add a language by writing its table next to en.ts and listing it here.
-// Target: the same 11 languages as Truck Driver Helper.
-export const STRINGS = { en, ru } satisfies Record<string, Strings>;
+// The order is the order of the language picker: Truck Driver Helper's 11 first,
+// then languages of other large immigrant driver groups in the US.
+export const STRINGS = {
+  en, ru, uk, zh, hi, es, ar, fr, bn, pt, id,
+  pa, uz, pl, ro, tr, ht,
+} satisfies Record<string, Strings>;
 
 export type Lang = keyof typeof STRINGS;
 

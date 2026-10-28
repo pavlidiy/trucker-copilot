@@ -7,7 +7,7 @@ Menu variant C: under each reply the driver gets up to two buttons for the next 
 
 - `src/wa/`: builders for WhatsApp messages (buttons, lists, CTA, location request), with limits enforced
 - `src/ui/`: screens, button ids, which buttons show at each load stage
-- `src/i18n/`: every string the driver sees, one file per language
+- `src/i18n/`: every string the driver sees, one file per language (17: the 11 of Truck Driver Helper plus pa, uz, pl, ro, tr, ht). Only en and ru are checked by a native speaker so far.
 - `src/domain/`: detention math and the data the screens render
 
 ```sh

@@ -35,6 +35,18 @@ test('paginate fits 11 languages into two list pages', () => {
   assert.deepEqual(second.map((r) => r.id), ['lang:9', 'lang:10']);
 });
 
+test('language picker shows every language across its pages', () => {
+  const ids: string[] = [];
+  for (let page = 0; ; page++) {
+    const picker = screen.welcome(page).at(-1)!;
+    assert.ok(picker.type === 'interactive' && picker.interactive.type === 'list');
+    const rows = picker.interactive.action.sections.flatMap((sec) => sec.rows.map((r) => r.id));
+    ids.push(...rows.filter((id) => id.startsWith('lang:')));
+    if (!rows.some((id) => id.startsWith('lang_page:'))) break;
+  }
+  assert.deepEqual(ids, LANGS.map((l) => `lang:${l}`));
+});
+
 test('every stage ends with Menu and has at most three buttons', () => {
   for (const lang of LANGS) {
     for (const stage of STAGES) {

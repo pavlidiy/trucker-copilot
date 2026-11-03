@@ -55,7 +55,7 @@ export const ht: Strings = {
     takePhotoAgain: '📸 Ankò',
     route: (from, to) => `${from} → ${to}`,
     risk: {
-      no_detention_clause: () => '🔴 *Pa gen kloz detention.* Si ou tann, broker a ka pa peye anyen.',
+      no_detention_clause: () => '🔴 *Pa gen peman detention garanti.* Si ou tann, broker a ka pa peye anyen.',
       late_fine: (a) => `🔴 *Amann${a ? ` ${a}` : ''} pou reta.*`,
       lumper_on_driver: () => '🟡 Chofè a peye lumper, ranbousman ak resi.',
       low_rpm: () => '🟡 Pri pa mil la pi ba pase mwayèn sou wout sa a.',

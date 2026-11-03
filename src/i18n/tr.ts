@@ -55,7 +55,7 @@ export const tr: Strings = {
     takePhotoAgain: '📸 Tekrar çek',
     route: (from, to) => `${from} → ${to}`,
     risk: {
-      no_detention_clause: () => '🔴 *Detention maddesi yok.* Beklerseniz broker hiç ödemeyebilir.',
+      no_detention_clause: () => '🔴 *Garantili detention ödemesi yok.* Beklerseniz broker hiç ödemeyebilir.',
       late_fine: (a) => `🔴 *Gecikme cezası${a ? ` ${a}` : ''}.*`,
       lumper_on_driver: () => '🟡 Lumper’ı şoför öder, fişle geri alınır.',
       low_rpm: () => '🟡 Bu hatta mil başı ücret ortalamanın altında.',

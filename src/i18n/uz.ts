@@ -55,7 +55,7 @@ export const uz: Strings = {
     takePhotoAgain: '📸 Qayta olish',
     route: (from, to) => `${from} → ${to}`,
     risk: {
-      no_detention_clause: () => '🔴 *Detention bandi yoʻq.* Kutib qolsangiz, broker hech narsa toʻlamasligi mumkin.',
+      no_detention_clause: () => '🔴 *Detention uchun kafolatli toʻlov yoʻq.* Kutib qolsangiz, broker hech narsa toʻlamasligi mumkin.',
       late_fine: (a) => `🔴 *Kechikish uchun jarima${a ? ` ${a}` : ''}.*`,
       lumper_on_driver: () => '🟡 Lumper’ni haydovchi toʻlaydi, chek boʻyicha qaytariladi.',
       low_rpm: () => '🟡 Bu yoʻnalishda milya narxi oʻrtachadan past.',

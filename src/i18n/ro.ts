@@ -55,7 +55,7 @@ export const ro: Strings = {
     takePhotoAgain: '📸 Încă o dată',
     route: (from, to) => `${from} → ${to}`,
     risk: {
-      no_detention_clause: () => '🔴 *Nu există clauză de detention.* Dacă așteptați, brokerul poate să nu plătească nimic.',
+      no_detention_clause: () => '🔴 *Nicio plată garantată pentru detention.* Dacă așteptați, brokerul poate să nu plătească nimic.',
       late_fine: (a) => `🔴 *Amendă${a ? ` de ${a}` : ''} pentru întârziere.*`,
       lumper_on_driver: () => '🟡 Șoferul plătește lumperul, rambursare pe bon.',
       low_rpm: () => '🟡 Tariful pe milă e sub medie pe această rută.',

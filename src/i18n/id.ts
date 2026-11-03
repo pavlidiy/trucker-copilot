@@ -55,7 +55,7 @@ export const id: Strings = {
     takePhotoAgain: '📸 Foto lagi',
     route: (from, to) => `${from} → ${to}`,
     risk: {
-      no_detention_clause: () => '🔴 *Tidak ada klausul detention.* Jika menunggu, broker bisa tidak membayar.',
+      no_detention_clause: () => '🔴 *Tidak ada bayaran detention yang pasti.* Jika menunggu, broker bisa tidak membayar.',
       late_fine: (a) => `🔴 *Denda terlambat${a ? ` ${a}` : ''}.*`,
       lumper_on_driver: () => '🟡 Sopir membayar lumper, diganti dengan kuitansi.',
       low_rpm: () => '🟡 Tarif per mil di bawah rata-rata untuk rute ini.',

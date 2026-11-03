@@ -53,7 +53,7 @@ export const zh: Strings = {
     takePhotoAgain: '📸 重拍',
     route: (from, to) => `${from} → ${to}`,
     risk: {
-      no_detention_clause: () => '🔴 *没有 detention 条款。* 如果等待，broker 可能一分不付。',
+      no_detention_clause: () => '🔴 *没有保证的 detention 费。* 如果等待，broker 可能一分不付。',
       late_fine: (a) => `🔴 *迟到罚款${a ? ` ${a}` : ''}。*`,
       lumper_on_driver: () => '🟡 司机先付 lumper，凭收据报销。',
       low_rpm: () => '🟡 每英里运价低于这条线路的平均水平。',

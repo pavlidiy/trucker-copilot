@@ -55,7 +55,7 @@ export const pa: Strings = {
     takePhotoAgain: '📸 ਦੁਬਾਰਾ',
     route: (from, to) => `${from} → ${to}`,
     risk: {
-      no_detention_clause: () => '🔴 *detention ਦੀ ਸ਼ਰਤ ਨਹੀਂ ਹੈ।* ਜੇ ਉਡੀਕ ਕਰਨੀ ਪਈ ਤਾਂ broker ਕੁਝ ਵੀ ਨਹੀਂ ਦੇ ਸਕਦਾ।',
+      no_detention_clause: () => '🔴 *detention ਦਾ ਪੱਕਾ ਭੁਗਤਾਨ ਨਹੀਂ ਹੈ।* ਜੇ ਉਡੀਕ ਕਰਨੀ ਪਈ ਤਾਂ broker ਕੁਝ ਵੀ ਨਹੀਂ ਦੇ ਸਕਦਾ।',
       late_fine: (a) => `🔴 *ਦੇਰੀ ਤੇ ਜੁਰਮਾਨਾ${a ? ` ${a}` : ''}।*`,
       lumper_on_driver: () => '🟡 lumper ਡਰਾਈਵਰ ਦੇਵੇਗਾ, ਰਸੀਦ ਤੇ ਵਾਪਸ ਮਿਲੇਗਾ।',
       low_rpm: () => '🟡 ਇਸ ਰੂਟ ਤੇ ਪ੍ਰਤੀ ਮੀਲ ਰੇਟ ਔਸਤ ਤੋਂ ਘੱਟ ਹੈ।',

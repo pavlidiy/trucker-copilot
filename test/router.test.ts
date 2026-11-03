@@ -96,7 +96,7 @@ test('rate con photo is read, judged and saved as a checked load', async () => {
   const result = show(await route(store, photo, new Date(), services));
   assert.match(early.join(), /Reading the document/);
   assert.match(result, /#8841207/);
-  assert.match(result, /No detention clause/);
+  assert.match(result, /No guaranteed detention pay/);
   assert.match(result, /Late fee \$250/);
   assert.equal(loads[0]?.stage, 'checked');
   assert.equal(loads[0]?.rate_cents, 215000);

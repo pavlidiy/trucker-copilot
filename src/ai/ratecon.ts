@@ -108,7 +108,8 @@ export const RATECON_SCHEMA = {
 const INSTRUCTIONS = `You read US trucking rate confirmations for drivers.
 Extract only what the document states. Never guess: use null when a value is not written.
 For each clause (detention, late fee, TONU, lumper) copy the exact sentence into "quote" and give its page.
-"present" is true only if the document has a clause about it. Fines for being late, missing appointments or
+"present" is true only if the document has a clause about it. For detention, amount_usd is the guaranteed hourly
+rate; use null when pay is only "if approved", "at broker's discretion" or "none". Fines for being late, missing appointments or
 service failures count as late_fee. Lumper paid by driver or carrier "with receipt" means paid_by "carrier",
 reimbursed true.`;
 

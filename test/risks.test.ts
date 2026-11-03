@@ -27,3 +27,11 @@ test('analysis fills route and money', () => {
   assert.equal(a.pickup.city, 'Atlanta, GA');
   assert.equal(a.broker, 'Swift Brokerage LLC');
 });
+
+test('detention "none unless approved" still counts as no detention pay', () => {
+  const risks = assessRatecon(sample({
+    detention: { present: true, amount_usd: null, quote: 'Detention: none unless approved in writing by broker', page: 2, free_hours: null },
+  }));
+  assert.equal(risks[0]!.code, 'no_detention_clause');
+  assert.equal(risks[0]!.ref, 'p. 2');
+});

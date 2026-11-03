@@ -11,7 +11,10 @@ const ref = (page: number | null) => (page ? `p. ${page}` : undefined);
 /** Turns what the document says into the risks we show, worst first. */
 export function assessRatecon(x: RateconExtract): Risk[] {
   const risks: Risk[] = [];
-  if (!x.detention.present) risks.push({ level: 'red', code: 'no_detention_clause' });
+  // "Detention: none unless approved in writing" is a clause, but it promises nothing: no rate means no pay.
+  if (!x.detention.present || !x.detention.amount_usd) {
+    risks.push({ level: 'red', code: 'no_detention_clause', ref: ref(x.detention.page) });
+  }
   if (x.late_fee.present) {
     risks.push({ level: 'red', code: 'late_fine', amountCents: cents(x.late_fee.amount_usd), ref: ref(x.late_fee.page) });
   }

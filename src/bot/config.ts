@@ -16,6 +16,8 @@ export interface Config {
   /** Meta Model API (Muse Spark), for reading rate cons. */
   museApiKey: string;
   museModel: string;
+  /** Streaming speed for Muse Voice Transcribe, × real time. */
+  voiceSpeed: number;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -35,5 +37,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     supabaseServiceKey: need('SUPABASE_SERVICE_ROLE_KEY'),
     museApiKey: need('MUSE_API_KEY'),
     museModel: env.MUSE_MODEL ?? 'muse-spark-1.3',
+    voiceSpeed: Number(env.VOICE_SPEED ?? 1),
   };
 }

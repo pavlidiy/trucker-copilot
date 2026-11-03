@@ -52,6 +52,8 @@ const noMuse: Services = {
   async readRatecon() { throw new Error('not expected'); },
   async writeLetter() { throw new Error('not expected'); },
   async readBrokerAnswer() { throw new Error('not expected'); },
+  async transcribe() { throw new Error('not expected'); },
+  async understand() { return 'other'; },
   async sendNow() {},
 };
 const show = (msgs: Awaited<ReturnType<typeof route>>) => msgs.map(render).join('\n---\n');
@@ -163,4 +165,22 @@ test('detention claim: letter from our numbers, copy, broker offers less, accept
   await route(store, tap(ID.replyAccept), new Date('2026-11-03T12:00:00Z'), services);
   assert.equal(loads[0]?.recovered_cents, 10000);
   assert.equal(loads[0]?.stage, 'closed');
+});
+
+test('voice note in Russian: transcribed, understood as "arrived", asks for location', async () => {
+  const { store } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'ru', onboarding_step: 'done' });
+  const early: string[] = [];
+  const services: Services = {
+    ...noMuse,
+    async transcribe(media) { assert.equal(media.id, 'voice1'); return 'я приехал на склад'; },
+    async understand(t) { assert.equal(t, 'я приехал на склад'); return 'arrived'; },
+    async sendNow(msgs) { early.push(show(msgs)); },
+  };
+  const voice: InboundMessage = { from, id: `m${++n}`, timestamp: '0', type: 'audio', audio: { id: 'voice1', mime_type: 'audio/ogg; codecs=opus', voice: true } };
+  const out = show(await route(store, voice, new Date(), services));
+  assert.match(early.join(), /🎧 “я приехал на склад”/);
+  assert.equal((await route(store, voice, new Date(), services)).at(-1)?.type, 'interactive');
+  assert.ok(out.length > 0);
 });

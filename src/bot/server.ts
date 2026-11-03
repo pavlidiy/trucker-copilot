@@ -2,7 +2,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { loadConfig, type Config } from './config.ts';
 import { Db } from './db.ts';
 import { readBrokerAnswer, writeLetter } from '../ai/email.ts';
+import { understand } from '../ai/intent.ts';
 import { readRatecon } from '../ai/ratecon.ts';
+import { transcribe } from '../ai/voice.ts';
 import { freeTimeOver, genericError } from '../ui/screens.ts';
 import { DEFAULT_TIME_ZONE } from '../domain/timezone.ts';
 import { route, type Services } from './router.ts';
@@ -14,6 +16,7 @@ import { downloadMedia, extractMessages, markReadAndTyping, sendMessage, verifyS
 export function startServer(cfg: Config = loadConfig()) {
   const db = new Db(cfg);
   const muse = { apiKey: cfg.museApiKey, model: cfg.museModel };
+  const voice = { apiKey: cfg.museApiKey, speed: cfg.voiceSpeed };
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -57,6 +60,8 @@ export function startServer(cfg: Config = loadConfig()) {
           { text: input.text, parts: input.media && [await downloadMedia(cfg, input.media.id, input.media.filename)] },
           context,
         ),
+      transcribe: async (media) => transcribe(voice, (await downloadMedia(cfg, media.id)).data),
+      understand: (text, stage) => understand(muse, text, stage),
       sendNow: send,
     };
     try {

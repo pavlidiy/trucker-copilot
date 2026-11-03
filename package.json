@@ -13,7 +13,8 @@
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "try-ratecon": "tsx --env-file=.env src/try-ratecon.ts",
-    "try-letter": "tsx --env-file=.env src/try-letter.ts"
+    "try-letter": "tsx --env-file=.env src/try-letter.ts",
+    "try-voice": "tsx --env-file=.env src/try-voice.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

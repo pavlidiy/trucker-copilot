@@ -1,4 +1,5 @@
 import { LANGUAGE_NAMES, type BrokerAnswer, type Letter, type LetterFacts, type LetterKind } from '../ai/email.ts';
+import type { Intent } from '../ai/intent.ts';
 import type { RateconExtract } from '../ai/ratecon.ts';
 import type { DetentionTerms } from '../domain/detention.ts';
 import { DEFAULT_TIME_ZONE, timeZoneFor } from '../domain/timezone.ts';
@@ -44,6 +45,10 @@ export interface Services {
     input: { text?: string; media?: { id: string; filename?: string } },
     context: { driverLanguage: string; claimedUsd: number | null },
   ): Promise<BrokerAnswer>;
+  /** Muse Voice Transcribe: a WhatsApp voice note → text. Empty string when nothing was heard. */
+  transcribe(media: { id: string }): Promise<string>;
+  /** Muse Spark: free text in any language → one of the bot's actions. */
+  understand(text: string, stage: LoadStage | undefined): Promise<Intent>;
   /** Sends replies right away, before the slow part (e.g. "Reading the document…"). */
   sendNow(msgs: OutgoingMessage[]): Promise<void>;
 }
@@ -54,12 +59,23 @@ export async function route(store: Store, msg: InboundMessage, now = new Date(),
     await store.createDriver(msg.from);
     return screen.welcome();
   }
-  const action = actionOf(msg);
+  // A voice note becomes text first; the driver sees what we heard, so a mishearing is obvious.
+  const heardEcho: OutgoingMessage[] = [];
+  if (msg.type === 'audio' && msg.audio && services) {
+    const heard = await services.transcribe({ id: msg.audio.id });
+    if (!heard) return screen.voiceNotUnderstood(ctxFor(driver.lang ?? 'en'));
+    msg = { ...msg, type: 'text', text: { body: heard } };
+    heardEcho.push({ type: 'text', text: { body: `🎧 “${heard}”` } });
+  }
+  let action = actionOf(msg);
 
-  if (driver.onboarding_step !== 'done' || !driver.lang) return onboarding(store, driver, msg, action);
+  if (driver.onboarding_step !== 'done' || !driver.lang) {
+    return [...heardEcho, ...(await onboarding(store, driver, msg, action))];
+  }
 
   const ctx: screen.Ctx = { lang: driver.lang, timeZone: DEFAULT_TIME_ZONE };
   const [load] = await store.recentLoads(driver.wa_id, 1);
+  if (heardEcho.length) await services?.sendNow(heardEcho);
 
   const typed = msg.type === 'text' && !action ? msg.text?.body.trim() : undefined;
   const media = msg.image ?? msg.document;
@@ -70,6 +86,8 @@ export async function route(store: Store, msg: InboundMessage, now = new Date(),
     const answer = await onBrokerAnswer(store, services, driver, ctx, load, typed, media && { id: media.id, filename: msg.document?.filename });
     if (answer) return answer;
   }
+
+  if (typed && services && !driver.awaiting) action = INTENT_ACTION[await services.understand(typed, load?.stage)];
 
   if (msg.type === 'location' && msg.location) {
     return onLocation(store, driver, ctx, load, msg.location, now);
@@ -358,6 +376,20 @@ async function onLocation(
   await store.setLoadStage(target.id, kind === 'pickup' ? 'at_pickup' : 'at_delivery');
   return screen.arrived({ ...ctx, timeZone }, now, place, terms(target));
 }
+
+const INTENT_ACTION: Record<Intent, string | undefined> = {
+  arrived: ID.stopArrive,
+  left: ID.stopLeave,
+  how_long: ID.stopHowLong,
+  email_broker: ID.emailDraft,
+  warn_broker: ID.stopWarnBroker,
+  check_ratecon: ID.rateconCheck,
+  loads: ID.loads,
+  recovered: ID.recovered,
+  menu: ID.menu,
+  help: ID.help,
+  other: undefined,
+};
 
 function actionOf(msg: InboundMessage): string | undefined {
   if (msg.type === 'interactive') return msg.interactive?.button_reply?.id ?? msg.interactive?.list_reply?.id;

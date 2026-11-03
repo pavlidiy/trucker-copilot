@@ -1,0 +1,15 @@
+# systemd user unit: ~/.config/systemd/user/trucker-copilot.service
+# Enable: systemctl --user daemon-reload && systemctl --user enable --now trucker-copilot
+# Keep running after logout: sudo loginctl enable-linger $USER
+[Unit]
+Description=Trucker Copilot WhatsApp bot
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/apps/trucker-copilot
+ExecStart=/usr/bin/env bash -lc 'exec npm start'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

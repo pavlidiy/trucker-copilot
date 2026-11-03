@@ -143,6 +143,21 @@ export class Db {
     return this.rest<Stop[]>(`stops?load_id=eq.${enc(loadId)}&order=arrived_at.asc`);
   }
 
+  /** Open stops whose free time is over and the driver has not been told yet. */
+  async freeTimeOver(now: Date): Promise<Array<Stop & { loads: Pick<Load, 'wa_id' | 'free_minutes'> }>> {
+    const rows = await this.rest<Array<Stop & { loads: Pick<Load, 'wa_id' | 'free_minutes'> }>>(
+      'stops?left_at=is.null&free_time_notified_at=is.null&select=*,loads(wa_id,free_minutes)',
+    );
+    return rows.filter((s) => new Date(s.arrived_at).getTime() + s.loads.free_minutes * 60_000 <= now.getTime());
+  }
+
+  async markFreeTimeNotified(stopId: string, at: Date): Promise<void> {
+    await this.rest(`stops?id=eq.${enc(stopId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ free_time_notified_at: at.toISOString() }),
+    });
+  }
+
   async openStop(loadId: string): Promise<Stop | undefined> {
     const rows = await this.rest<Stop[]>(`stops?load_id=eq.${enc(loadId)}&left_at=is.null&order=arrived_at.desc&limit=1`);
     return rows[0];

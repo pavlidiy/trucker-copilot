@@ -3,7 +3,7 @@ import { loadConfig, type Config } from './config.ts';
 import { Db } from './db.ts';
 import { readBrokerAnswer, writeLetter } from '../ai/email.ts';
 import { readRatecon } from '../ai/ratecon.ts';
-import { genericError } from '../ui/screens.ts';
+import { freeTimeOver, genericError } from '../ui/screens.ts';
 import { DEFAULT_TIME_ZONE } from '../domain/timezone.ts';
 import { route, type Services } from './router.ts';
 import { downloadMedia, extractMessages, markReadAndTyping, sendMessage, verifySignature, type WebhookBody } from './whatsapp.ts';
@@ -68,6 +68,22 @@ export function startServer(cfg: Config = loadConfig()) {
       throw err;
     }
   }
+
+  // Free time ends while the driver waits at the dock: tell them, with a button to warn the broker.
+  // Inside WhatsApp's 24h window, since the driver shared their location when they arrived.
+  async function remindFreeTimeOver(): Promise<void> {
+    const now = new Date();
+    for (const stop of await db.freeTimeOver(now)) {
+      await db.markFreeTimeNotified(stop.id, now); // first, so a failed send never repeats every minute
+      const driver = await db.getDriver(stop.loads.wa_id);
+      const endsAt = new Date(new Date(stop.arrived_at).getTime() + stop.loads.free_minutes * 60_000);
+      for (const out of freeTimeOver({ lang: driver?.lang ?? 'en', timeZone: stop.time_zone }, endsAt)) {
+        await sendMessage(cfg, stop.loads.wa_id, out);
+      }
+    }
+  }
+  const timer = setInterval(() => void remindFreeTimeOver().catch((err) => console.error('free time reminder:', err)), 60_000);
+  server.on('close', () => clearInterval(timer));
 
   server.listen(cfg.port, () => console.log(`trucker-copilot listening on :${cfg.port} (POST /webhook)`));
   return server;

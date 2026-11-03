@@ -11,7 +11,8 @@
     "start": "tsx --env-file=.env src/main.ts",
     "preview": "tsx src/preview.ts",
     "test": "tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "try-ratecon": "tsx --env-file=.env src/try-ratecon.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

@@ -211,17 +211,18 @@ export interface EmailDraft {
   to: string;
   subject: string;
   body: string; // English, written by Muse Spark from our numbers
+  translation: string; // what the letter says, in the driver's language
 }
 
-/** The draft, then a voice note with the translation (sent separately by the voice layer). */
+/** The English letter, then what it says in the driver's language. Sending is by copy: no mailer yet. */
 export function emailDraft(ctx: Ctx, draft: EmailDraft): OutgoingMessage[] {
   const e = s(ctx).email;
-  const preview = `${e.draftIntro(draft.to)}\n\n*Subject: ${draft.subject}*\n\n${draft.body}\n\n${e.translationNote}`;
+  const preview = `${e.draftIntro(draft.to)}\n\n*Subject: ${draft.subject}*\n\n${draft.body}\n\n🗣 ${draft.translation}`;
   return [
     buttons(preview, [
-      { id: ID.emailSend, title: e.send },
       { id: ID.emailCopy, title: e.copy },
       { id: ID.emailEdit, title: e.edit },
+      { id: ID.menu, title: s(ctx).common.menu },
     ]),
   ];
 }

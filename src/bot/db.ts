@@ -1,3 +1,4 @@
+import type { Letter, LetterKind } from '../ai/email.ts';
 import type { LoadStage, Place, RateconAnalysis, StopKind } from '../domain/types.ts';
 import type { Lang } from '../i18n/index.ts';
 import type { Config } from './config.ts';
@@ -14,6 +15,8 @@ export interface Driver {
   name: string | null;
   company: string | null;
   email: string | null;
+  /** What the next free-form message means: a change to the draft letter, or the broker's answer. */
+  awaiting?: 'letter_edit' | 'broker_answer' | null;
 }
 
 export interface Load {
@@ -30,6 +33,9 @@ export interface Load {
   detention_rate_cents: number;
   free_minutes: number;
   analysis: RateconAnalysis | null;
+  letter?: (Letter & { kind: LetterKind; offeredCents?: number | undefined }) | null;
+  claimed_cents?: number | null;
+  recovered_cents?: number | null;
   created_at: string;
 }
 
@@ -124,6 +130,17 @@ export class Db {
       method: 'PATCH',
       body: JSON.stringify({ stage, updated_at: new Date().toISOString() }),
     });
+  }
+
+  async updateLoad(loadId: string, patch: Partial<Omit<Load, 'id' | 'wa_id'>>): Promise<void> {
+    await this.rest(`loads?id=eq.${enc(loadId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+    });
+  }
+
+  async stops(loadId: string): Promise<Stop[]> {
+    return this.rest<Stop[]>(`stops?load_id=eq.${enc(loadId)}&order=arrived_at.asc`);
   }
 
   async openStop(loadId: string): Promise<Stop | undefined> {

@@ -60,6 +60,7 @@ const draft: screen.EmailDraft = {
     'Hello,\n\nI arrived at Walmart DC 7035 at 08:12 and was released at 13:47 (BOL signed 13:41). ' +
     'That is 5 h 35 min on site, 3 h 35 min past the 2 free hours. At $50/hr the detention is $179.17.\n\n' +
     'Please confirm it will be added to the settlement.\n\nThank you,\nIvan Petrov, MC 1234567',
+  translation: 'Пишем брокеру: вы ждали 5 ч 35 мин, 3 ч 35 мин сверх бесплатных 2 часов. Просим $179.17 по ставке $50 в час.',
 };
 
 type Step = [label: string, driver: string | null, messages: OutgoingMessage[]];

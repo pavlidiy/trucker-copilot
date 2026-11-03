@@ -2,11 +2,9 @@
 // The model only extracts what the document says, with quotes and page numbers.
 // Judging what is risky happens in code (domain/risks.ts), so every language gets the same verdict.
 
-export interface MuseConfig {
-  apiKey: string;
-  model: string; // e.g. "muse-spark-1.3"
-  baseUrl?: string;
-}
+import { museJson, nullable, type DocumentPart, type MuseConfig } from './muse.ts';
+
+export type { DocumentPart, MuseConfig } from './muse.ts';
 
 export interface Clause {
   present: boolean;
@@ -37,14 +35,6 @@ interface Stop {
   state: string | null;
   appointment: string | null; // as written, e.g. "11/02 08:00"
 }
-
-export interface DocumentPart {
-  mime: string; // image/jpeg, application/pdf, ...
-  data: Uint8Array;
-  filename?: string;
-}
-
-const nullable = (type: string) => ({ type: [type, 'null'] });
 
 const stopSchema = {
   type: 'object',
@@ -113,34 +103,12 @@ rate; use null when pay is only "if approved", "at broker's discretion" or "none
 service failures count as late_fee. Lumper paid by driver or carrier "with receipt" means paid_by "carrier",
 reimbursed true.`;
 
-export async function readRatecon(cfg: MuseConfig, parts: DocumentPart[]): Promise<RateconExtract> {
-  const content: unknown[] = [{ type: 'text', text: 'Extract this rate confirmation.' }];
-  for (const p of parts) {
-    const dataUrl = `data:${p.mime};base64,${Buffer.from(p.data).toString('base64')}`;
-    content.push(
-      p.mime === 'application/pdf'
-        ? { type: 'file', file: { filename: p.filename ?? 'ratecon.pdf', file_data: dataUrl } }
-        : { type: 'image_url', image_url: { url: dataUrl } },
-    );
-  }
-
-  const res = await fetch(`${cfg.baseUrl ?? 'https://api.meta.ai/v1'}/chat/completions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages: [
-        { role: 'developer', content: INSTRUCTIONS },
-        { role: 'user', content },
-      ],
-      reasoning_effort: 'low',
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'RateConfirmation', schema: RATECON_SCHEMA, strict: true },
-      },
-    }),
+export function readRatecon(cfg: MuseConfig, parts: DocumentPart[]): Promise<RateconExtract> {
+  return museJson<RateconExtract>(cfg, {
+    name: 'RateConfirmation',
+    instructions: INSTRUCTIONS,
+    text: 'Extract this rate confirmation.',
+    parts,
+    schema: RATECON_SCHEMA,
   });
-  if (!res.ok) throw new Error(`Muse Spark ${res.status}: ${await res.text()}`);
-  const body = (await res.json()) as { choices: Array<{ message: { content: string } }> };
-  return JSON.parse(body.choices[0]!.message.content) as RateconExtract;
 }

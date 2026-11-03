@@ -1,3 +1,4 @@
+import { LANGUAGE_NAMES, type BrokerAnswer, type Letter, type LetterFacts, type LetterKind } from '../ai/email.ts';
 import type { RateconExtract } from '../ai/ratecon.ts';
 import type { DetentionTerms } from '../domain/detention.ts';
 import { DEFAULT_TIME_ZONE, timeZoneFor } from '../domain/timezone.ts';
@@ -9,6 +10,7 @@ import * as screen from '../ui/screens.ts';
 import { currentStop } from '../ui/stage.ts';
 import type { OutgoingMessage } from '../wa/types.ts';
 import type { Db, Driver, Load } from './db.ts';
+import { detentionCents, letterFacts } from './letters.ts';
 import type { InboundMessage } from './whatsapp.ts';
 
 // Turns one inbound WhatsApp message into the replies to send. All state is read from and
@@ -24,6 +26,8 @@ export type Store = Pick<
   | 'getLoad'
   | 'createLoad'
   | 'setLoadStage'
+  | 'updateLoad'
+  | 'stops'
   | 'openStop'
   | 'createStop'
   | 'closeStop'
@@ -33,6 +37,13 @@ export type Store = Pick<
 export interface Services {
   /** Downloads a photo/PDF from WhatsApp and has Muse Spark extract it. */
   readRatecon(media: { id: string; filename?: string }): Promise<RateconExtract>;
+  /** Muse Spark writes the English letter from our facts and retells it in the driver's language. */
+  writeLetter(facts: LetterFacts, language: string, edit?: { previous: Letter; instruction: string }): Promise<Letter>;
+  /** Muse Spark explains a broker's email (pasted text or a screenshot) in the driver's language. */
+  readBrokerAnswer(
+    input: { text?: string; media?: { id: string; filename?: string } },
+    context: { driverLanguage: string; claimedUsd: number | null },
+  ): Promise<BrokerAnswer>;
   /** Sends replies right away, before the slow part (e.g. "Reading the document…"). */
   sendNow(msgs: OutgoingMessage[]): Promise<void>;
 }
@@ -50,10 +61,19 @@ export async function route(store: Store, msg: InboundMessage, now = new Date(),
   const ctx: screen.Ctx = { lang: driver.lang, timeZone: DEFAULT_TIME_ZONE };
   const [load] = await store.recentLoads(driver.wa_id, 1);
 
+  const typed = msg.type === 'text' && !action ? msg.text?.body.trim() : undefined;
+  const media = msg.image ?? msg.document;
+  if (services && load && driver.awaiting === 'letter_edit' && typed) {
+    return editLetter(store, services, driver, ctx, load, typed);
+  }
+  if (services && load && driver.awaiting === 'broker_answer' && (typed || media)) {
+    const answer = await onBrokerAnswer(store, services, driver, ctx, load, typed, media && { id: media.id, filename: msg.document?.filename });
+    if (answer) return answer;
+  }
+
   if (msg.type === 'location' && msg.location) {
     return onLocation(store, driver, ctx, load, msg.location, now);
   }
-  const media = msg.image ?? msg.document;
   if (media && services) return onRatecon(store, services, driver, ctx, { id: media.id, filename: msg.document?.filename });
   if (msg.type === 'audio') return screen.voiceNotUnderstood(ctx);
 
@@ -88,8 +108,34 @@ export async function route(store: Store, msg: InboundMessage, now = new Date(),
     }
     case ID.loads:
       return screen.myLoads(ctx, (await store.recentLoads(driver.wa_id, 10)).map(summary));
+    case ID.rateconAskChanges:
+      return load && services ? draftLetter(store, services, driver, ctx, load, 'ratecon_changes') : screen.askRatecon(ctx);
+    case ID.stopWarnBroker:
+      return load && services ? draftLetter(store, services, driver, ctx, load, 'detention_notice', { now }) : screen.mainMenu(ctx);
+    case ID.emailDraft:
+      return load && services ? draftLetter(store, services, driver, ctx, load, 'detention_claim') : screen.mainMenu(ctx);
+    case ID.emailEdit:
+      await store.updateDriver(driver.wa_id, { awaiting: 'letter_edit' });
+      return screen.emailEditPrompt(ctx);
+    case ID.emailSend:
+    case ID.emailCopy:
+      return load?.letter ? copyLetter(store, driver, ctx, load) : screen.mainMenu(ctx, load?.stage);
+    case ID.replyAccept: {
+      if (!load) return screen.mainMenu(ctx);
+      const got = load.letter?.offeredCents ?? load.claimed_cents ?? 0;
+      await store.updateLoad(load.id, { recovered_cents: got, stage: 'closed' });
+      await store.updateDriver(driver.wa_id, { awaiting: null });
+      return recoveredScreen(store, driver, ctx, now);
+    }
+    case ID.replyCounter:
+      return load && services
+        ? draftLetter(store, services, driver, ctx, load, 'counter', { offeredUsd: (load.letter?.offeredCents ?? 0) / 100 })
+        : screen.mainMenu(ctx);
+    case ID.replyCustom:
+      await store.updateDriver(driver.wa_id, { awaiting: 'letter_edit' });
+      return screen.emailEditPrompt(ctx);
     case ID.recovered:
-      return screen.recovered(ctx, '', 0, 0);
+      return recoveredScreen(store, driver, ctx, now);
     case ID.settings:
       return screen.settings(ctx);
     case ID.setLanguage:
@@ -194,6 +240,90 @@ function detentionTerms(x: RateconExtract): { free_minutes?: number; detention_r
   return out;
 }
 
+/** Muse Spark writes the letter; we keep it on the load so "Edit" and "Copy" work on the same draft. */
+async function draftLetter(
+  store: Store,
+  services: Services,
+  driver: Driver,
+  ctx: screen.Ctx,
+  load: Load,
+  kind: LetterKind,
+  opts: { offeredUsd?: number; now?: Date } = {},
+): Promise<OutgoingMessage[]> {
+  await services.sendNow([{ type: 'text', text: { body: '✍️…' } }]);
+  const stops = await store.stops(load.id);
+  const facts = letterFacts(kind, driver, load, stops, opts);
+  const letter = await services.writeLetter(facts, LANGUAGE_NAMES[ctx.lang] ?? 'English');
+  const claimed = kind === 'detention_claim' ? Math.round(facts.totalUsd * 100) : load.claimed_cents ?? null;
+  await store.updateLoad(load.id, { letter: { ...letter, kind, offeredCents: load.letter?.offeredCents }, claimed_cents: claimed });
+  await store.updateDriver(driver.wa_id, { awaiting: null });
+  return screen.emailDraft(ctx, { to: load.broker_email ?? load.broker ?? 'broker', ...letter });
+}
+
+async function editLetter(
+  store: Store,
+  services: Services,
+  driver: Driver,
+  ctx: screen.Ctx,
+  load: Load,
+  instruction: string,
+): Promise<OutgoingMessage[]> {
+  await services.sendNow([{ type: 'text', text: { body: '✍️…' } }]);
+  const kind = load.letter?.kind ?? 'detention_claim';
+  const facts = letterFacts(kind, driver, load, await store.stops(load.id), {
+    offeredUsd: load.letter?.offeredCents !== undefined ? load.letter.offeredCents / 100 : undefined,
+  });
+  const language = LANGUAGE_NAMES[ctx.lang] ?? 'English';
+  const letter = await services.writeLetter(facts, language, load.letter ? { previous: load.letter, instruction } : undefined);
+  await store.updateLoad(load.id, { letter: { ...letter, kind, offeredCents: load.letter?.offeredCents } });
+  await store.updateDriver(driver.wa_id, { awaiting: null });
+  return screen.emailDraft(ctx, { to: load.broker_email ?? load.broker ?? 'broker', ...letter });
+}
+
+/** No mailer yet: the driver copies the letter into their own email. Then we wait for the broker's answer. */
+async function copyLetter(store: Store, driver: Driver, ctx: screen.Ctx, load: Load): Promise<OutgoingMessage[]> {
+  const letter = load.letter!;
+  if (letter.kind === 'detention_claim' || letter.kind === 'counter') await store.setLoadStage(load.id, 'claim_sent');
+  await store.updateDriver(driver.wa_id, { awaiting: 'broker_answer' });
+  return [...screen.emailCopy(ctx, { to: load.broker_email ?? '', ...letter }), ...screen.forwardBrokerHint(ctx)];
+}
+
+/** Returns undefined when the message is not a broker's answer (e.g. a new rate con photo): routing goes on. */
+async function onBrokerAnswer(
+  store: Store,
+  services: Services,
+  driver: Driver,
+  ctx: screen.Ctx,
+  load: Load,
+  typed: string | undefined,
+  media: { id: string; filename?: string } | undefined,
+): Promise<OutgoingMessage[] | undefined> {
+  await services.sendNow(screen.rateconReading(ctx));
+  const claimedUsd = load.claimed_cents != null ? load.claimed_cents / 100 : null;
+  const answer = await services.readBrokerAnswer(
+    { text: typed, media },
+    { driverLanguage: LANGUAGE_NAMES[ctx.lang] ?? 'English', claimedUsd },
+  );
+  if (!answer.is_broker_message) return undefined;
+  const offeredCents = answer.agreed_full
+    ? load.claimed_cents ?? undefined
+    : answer.offered_usd != null
+      ? Math.round(answer.offered_usd * 100)
+      : undefined;
+  if (load.letter) await store.updateLoad(load.id, { letter: { ...load.letter, offeredCents } });
+  return screen.brokerReply(ctx, { summary: answer.summary, meaning: answer.meaning, offeredCents });
+}
+
+async function recoveredScreen(store: Store, driver: Driver, ctx: screen.Ctx, now: Date): Promise<OutgoingMessage[]> {
+  const month = now.toISOString().slice(0, 7);
+  const loads = (await store.recentLoads(driver.wa_id, 100)).filter(
+    (l) => (l.recovered_cents ?? 0) > 0 && l.created_at.slice(0, 7) === month,
+  );
+  const total = loads.reduce((sum, l) => sum + (l.recovered_cents ?? 0), 0);
+  const monthName = new Intl.DateTimeFormat(ctx.lang, { month: 'long' }).format(now);
+  return screen.recovered(ctx, monthName, total, loads.length);
+}
+
 /** A shared location means "I'm here" when no stop is open, and "I left" when one is. */
 async function onLocation(
   store: Store,
@@ -252,7 +382,7 @@ function summary(load: Load): LoadSummary {
     pickup: load.pickup ?? { name: '', city: '—' },
     delivery: load.delivery ?? { name: '', city: '—' },
     stage: load.stage,
-    detentionCents: 0, // per-stop detention sums come with the claims step
+    detentionCents: load.claimed_cents ?? 0,
   };
 }
 

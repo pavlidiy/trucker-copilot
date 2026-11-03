@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { loadConfig, type Config } from './config.ts';
 import { Db } from './db.ts';
+import { readBrokerAnswer, writeLetter } from '../ai/email.ts';
 import { readRatecon } from '../ai/ratecon.ts';
 import { genericError } from '../ui/screens.ts';
 import { DEFAULT_TIME_ZONE } from '../domain/timezone.ts';
@@ -49,6 +50,13 @@ export function startServer(cfg: Config = loadConfig()) {
     };
     const services: Services = {
       readRatecon: async (media) => readRatecon(muse, [await downloadMedia(cfg, media.id, media.filename)]),
+      writeLetter: (facts, language, edit) => writeLetter(muse, facts, language, edit),
+      readBrokerAnswer: async (input, context) =>
+        readBrokerAnswer(
+          muse,
+          { text: input.text, parts: input.media && [await downloadMedia(cfg, input.media.id, input.media.filename)] },
+          context,
+        ),
       sendNow: send,
     };
     try {

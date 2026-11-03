@@ -78,7 +78,7 @@ test('button and row labels fit without truncation in every language', () => {
       ...screen.settings(ctx),
       ...screen.arrived(ctx, now, 'DC', { freeMinutes: 120, ratePerHourCents: 5000 }),
       ...screen.freeTimeOver(ctx, now),
-      ...screen.emailDraft(ctx, { to: 'a@b.c', subject: 's', body: 'b' }),
+      ...screen.emailDraft(ctx, { to: 'a@b.c', subject: 's', body: 'b', translation: 't' }),
       ...screen.brokerReply(ctx, { summary: 's', meaning: 'm', offeredCents: 123_456 }),
       ...screen.confirmDelete(ctx),
       ...screen.voiceNotUnderstood(ctx),

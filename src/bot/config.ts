@@ -18,6 +18,8 @@ export interface Config {
   museModel: string;
   /** Streaming speed for Muse Voice Transcribe, × real time. */
   voiceSpeed: number;
+  /** Demo only: how many seconds of bot time pass per real second. 1 in production. */
+  clockScale: number;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -38,5 +40,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     museApiKey: need('MUSE_API_KEY'),
     museModel: env.MUSE_MODEL ?? 'muse-spark-1.3',
     voiceSpeed: Number(env.VOICE_SPEED ?? 2),
+    clockScale: Number(env.DEMO_CLOCK_SCALE ?? 1),
   };
 }

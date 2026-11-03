@@ -15,6 +15,9 @@ import { downloadMedia, extractMessages, markReadAndTyping, sendMessage, verifyS
 
 export function startServer(cfg: Config = loadConfig()) {
   const db = new Db(cfg);
+  // DEMO_CLOCK_SCALE=60 makes a minute pass as an hour, so a 5-hour wait at the dock fits a demo video.
+  const started = Date.now();
+  const clock = () => new Date(started + (Date.now() - started) * cfg.clockScale);
   const muse = { apiKey: cfg.museApiKey, model: cfg.museModel };
   const voice = { apiKey: cfg.museApiKey, speed: cfg.voiceSpeed };
 
@@ -65,7 +68,7 @@ export function startServer(cfg: Config = loadConfig()) {
       sendNow: send,
     };
     try {
-      await send(await route(db, msg, new Date(), services));
+      await send(await route(db, msg, clock(), services));
     } catch (err) {
       // Never leave the driver hanging: say something went wrong, in their language.
       const driver = await db.getDriver(msg.from).catch(() => undefined);
@@ -77,7 +80,7 @@ export function startServer(cfg: Config = loadConfig()) {
   // Free time ends while the driver waits at the dock: tell them, with a button to warn the broker.
   // Inside WhatsApp's 24h window, since the driver shared their location when they arrived.
   async function remindFreeTimeOver(): Promise<void> {
-    const now = new Date();
+    const now = clock();
     for (const stop of await db.freeTimeOver(now)) {
       await db.markFreeTimeNotified(stop.id, now); // first, so a failed send never repeats every minute
       const driver = await db.getDriver(stop.loads.wa_id);

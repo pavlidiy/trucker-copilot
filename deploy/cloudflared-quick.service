@@ -1,0 +1,15 @@
+# systemd user unit: ~/.config/systemd/user/cloudflared-quick.service
+# Free public HTTPS without a domain. The trycloudflare.com address changes on every restart,
+# so re-enter it in Meta's webhook settings after one. Find it with:
+#   journalctl --user -u cloudflared-quick -n 50 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1
+[Unit]
+Description=Cloudflare quick tunnel for Trucker Copilot
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/cloudflared tunnel --no-autoupdate --url http://localhost:8787
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

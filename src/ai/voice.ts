@@ -86,7 +86,7 @@ export function transcribePcm(cfg: VoiceConfig, pcm: Buffer): Promise<string> {
     ws.addEventListener('close', (event) => {
       clearTimeout(timeout);
       if (event.code !== 1000) return reject(new Error(`voice socket closed ${event.code}: ${event.reason}`));
-      resolve([...finals, partial].join(' ').replace(/\s+/g, ' ').trim());
+      resolve([...finals, partial].join(' ').replace(/\s+/g, ' ').trim().replace(/([.!?…])[.!?…]+$/u, '$1'));
     });
     ws.addEventListener('error', () => fail(new Error('voice socket error')));
   });

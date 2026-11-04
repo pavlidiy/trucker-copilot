@@ -1,7 +1,8 @@
 import { LANGUAGE_NAMES, type BrokerAnswer, type Letter, type LetterFacts, type LetterKind } from '../ai/email.ts';
+import type { AssistantReply, SpokenLoadFacts, Suggestion } from '../ai/assistant.ts';
 import type { Intent } from '../ai/intent.ts';
 import type { RateconExtract } from '../ai/ratecon.ts';
-import type { DetentionTerms } from '../domain/detention.ts';
+import { computeDetention, type DetentionTerms } from '../domain/detention.ts';
 import { DEFAULT_TIME_ZONE, timeZoneFor } from '../domain/timezone.ts';
 import { toAnalysis } from '../domain/risks.ts';
 import type { LoadStage, LoadSummary, StopKind } from '../domain/types.ts';
@@ -10,7 +11,7 @@ import { ID, parseParam } from '../ui/ids.ts';
 import * as screen from '../ui/screens.ts';
 import { currentStop } from '../ui/stage.ts';
 import type { OutgoingMessage } from '../wa/types.ts';
-import type { Db, Driver, Load } from './db.ts';
+import type { Db, Driver, Load, Stop } from './db.ts';
 import { detentionCents, letterFacts } from './letters.ts';
 import type { InboundMessage } from './whatsapp.ts';
 
@@ -49,6 +50,15 @@ export interface Services {
   transcribe(media: { id: string }): Promise<string>;
   /** Muse Spark: free text in any language → one of the bot's actions. */
   understand(text: string, stage: LoadStage | undefined): Promise<Intent>;
+  /**
+   * Muse Spark answers a message that is not one of the bot's actions: a question, a story about a load
+   * without a rate con, small talk. The implementation keeps the last few turns per driver.
+   */
+  converse(
+    waId: string,
+    text: string,
+    context: { language: string; driverName: string | null; loadContext: string | null },
+  ): Promise<AssistantReply>;
   /** Sends replies right away, before the slow part (e.g. "Reading the document…"). */
   sendNow(msgs: OutgoingMessage[]): Promise<void>;
 }
@@ -87,7 +97,16 @@ export async function route(store: Store, msg: InboundMessage, now = new Date(),
     if (answer) return answer;
   }
 
-  if (typed && services && !driver.awaiting) action = INTENT_ACTION[await services.understand(typed, load?.stage)];
+  // Also while waiting for the broker's answer: we only get here when the text was not one.
+  let intent: Intent | undefined;
+  if (typed && services) {
+    intent = await services.understand(typed, load?.stage);
+    action = INTENT_ACTION[intent];
+  }
+  // A question or a story instead of a command: answer it, don't throw the menu at the driver.
+  const canTalk = Boolean(typed && services);
+  const talk = () => converse(store, services!, driver, ctx, load, typed!, now);
+  if (canTalk && (intent === 'other' || intent === 'help')) return talk();
 
   if (msg.type === 'location' && msg.location) {
     return onLocation(store, driver, ctx, load, msg.location, now);
@@ -121,7 +140,7 @@ export async function route(store: Store, msg: InboundMessage, now = new Date(),
       return screen.askLeaveLocation(ctx);
     case ID.stopHowLong: {
       const stop = load && (await store.openStop(load.id));
-      if (!stop) return screen.mainMenu(ctx, load?.stage);
+      if (!stop) return canTalk ? talk() : screen.mainMenu(ctx, load?.stage);
       return screen.detentionRunning({ ...ctx, timeZone: stop.time_zone }, new Date(stop.arrived_at), now, terms(load));
     }
     case ID.loads:
@@ -129,8 +148,10 @@ export async function route(store: Store, msg: InboundMessage, now = new Date(),
     case ID.rateconAskChanges:
       return load && services ? draftLetter(store, services, driver, ctx, load, 'ratecon_changes') : screen.askRatecon(ctx);
     case ID.stopWarnBroker:
+      if (!load && canTalk) return talk();
       return load && services ? draftLetter(store, services, driver, ctx, load, 'detention_notice', { now }) : screen.mainMenu(ctx);
     case ID.emailDraft:
+      if (!load && canTalk) return talk();
       return load && services ? draftLetter(store, services, driver, ctx, load, 'detention_claim') : screen.mainMenu(ctx);
     case ID.emailEdit:
       await store.updateDriver(driver.wa_id, { awaiting: 'letter_edit' });
@@ -168,7 +189,7 @@ export async function route(store: Store, msg: InboundMessage, now = new Date(),
     case ID.typeInstead:
       return [];
     default:
-      // "Меню", "menu", "hi", or anything we can't act on yet: show the menu.
+      // "Меню" or a button with no screen of its own. Free text is answered above, not sent here.
       return screen.mainMenu(ctx, load?.stage);
   }
 }
@@ -375,6 +396,98 @@ async function onLocation(
   });
   await store.setLoadStage(target.id, kind === 'pickup' ? 'at_pickup' : 'at_delivery');
   return screen.arrived({ ...ctx, timeZone }, now, place, terms(target));
+}
+
+/** Muse Spark answers in the driver's words, with the action that fits as a button: semi-automatic, never a bare menu. */
+async function converse(
+  store: Store,
+  services: Services,
+  driver: Driver,
+  ctx: screen.Ctx,
+  load: Load | undefined,
+  typed: string,
+  now: Date,
+): Promise<OutgoingMessage[]> {
+  const stop = load && (await store.openStop(load.id));
+  const answer = await services.converse(driver.wa_id, typed, {
+    language: LANGUAGE_NAMES[ctx.lang] ?? 'English',
+    driverName: driver.name,
+    loadContext: load ? describeLoad(load, stop, now) : null,
+  });
+  const current = answer.load ? await saveSpokenLoad(store, driver, load, answer.load, now) : load;
+  if (!answer.reply) return screen.mainMenu(ctx, current?.stage);
+  return screen.assistantReply(ctx, answer.reply, suggestionAction(answer.suggest, Boolean(stop), current), current?.stage);
+}
+
+/** The model's suggestion, checked against the real state: no "I left" without an open stop. */
+function suggestionAction(s: Suggestion, stopOpen: boolean, load: Load | undefined): string | undefined {
+  switch (s) {
+    case 'check_ratecon':
+      return ID.rateconCheck;
+    case 'arrived':
+      return stopOpen ? ID.stopHowLong : ID.stopArrive;
+    case 'left':
+      return stopOpen ? ID.stopLeave : undefined;
+    case 'how_long':
+      return stopOpen ? ID.stopHowLong : undefined;
+    case 'email_broker':
+      return load ? ID.emailDraft : undefined;
+    case 'loads':
+      return ID.loads;
+    case 'none':
+      return undefined;
+  }
+}
+
+/** What the model knows about the load, in plain English. Numbers come from the store and from code, not from chat. */
+function describeLoad(load: Load, stop: Stop | undefined, now: Date): string {
+  const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const parts = [`#${load.load_number}, stage ${load.stage}`, load.analysis ? 'rate con checked' : 'no rate con (logged by hand)'];
+  if (load.broker) parts.push(`broker ${load.broker}`);
+  if (load.pickup?.city || load.delivery?.city) parts.push(`${load.pickup?.city || '?'} to ${load.delivery?.city || '?'}`);
+  if (load.rate_cents) parts.push(`rate ${usd(load.rate_cents)}`);
+  if (load.miles) parts.push(`${load.miles} miles`);
+  parts.push(`detention ${usd(load.detention_rate_cents)}/hour after ${load.free_minutes / 60} free hours`);
+  if (load.analysis?.risks.length) parts.push(`rate con flags: ${load.analysis.risks.map((r) => r.code).join(', ')}`);
+  if (stop) {
+    const d = computeDetention(new Date(stop.arrived_at), now, terms(load));
+    parts.push(`stop open: at the ${stop.kind} (${stop.place_name ?? 'facility'}) for ${d.onSiteMinutes} minutes, detention so far ${usd(d.amountCents)}`);
+  }
+  if (load.claimed_cents) parts.push(`detention claimed ${usd(load.claimed_cents)}`);
+  return parts.join('; ');
+}
+
+/**
+ * A load the driver described in words is kept, so detention and letters work without a rate con.
+ * What a checked rate con says is never overwritten by chat.
+ */
+async function saveSpokenLoad(
+  store: Store,
+  driver: Driver,
+  load: Load | undefined,
+  f: SpokenLoadFacts,
+  now: Date,
+): Promise<Load | undefined> {
+  const said: Partial<Load> = {};
+  if (f.broker) said.broker = f.broker.slice(0, 120);
+  if (f.rate_usd != null && f.rate_usd > 0) said.rate_cents = Math.round(f.rate_usd * 100);
+  if (f.miles != null && f.miles > 0) said.miles = Math.round(f.miles);
+  if (f.pickup_city) said.pickup = { name: '', city: f.pickup_city.slice(0, 80) };
+  if (f.delivery_city) said.delivery = { name: '', city: f.delivery_city.slice(0, 80) };
+  if (f.detention_rate_usd != null && f.detention_rate_usd > 0) said.detention_rate_cents = Math.round(f.detention_rate_usd * 100);
+  if (f.free_hours != null && f.free_hours >= 0 && f.free_hours <= 12) said.free_minutes = Math.round(f.free_hours * 60);
+  if (Object.keys(said).length === 0) return load;
+
+  const active = load && load.stage !== 'left_delivery' && load.stage !== 'claim_sent' && load.stage !== 'closed';
+  if (!active) return store.createLoad({ wa_id: driver.wa_id, load_number: manualLoadNumber(now), stage: 'booked', ...said });
+
+  const patch: Partial<Load> = {};
+  for (const key of Object.keys(said) as Array<keyof typeof said>) {
+    const fromRatecon = load.analysis && (load[key] != null || key === 'detention_rate_cents' || key === 'free_minutes');
+    if (!fromRatecon) (patch as Record<string, unknown>)[key] = said[key];
+  }
+  if (Object.keys(patch).length) await store.updateLoad(load.id, patch);
+  return { ...load, ...patch };
 }
 
 const INTENT_ACTION: Record<Intent, string | undefined> = {

@@ -25,7 +25,12 @@ const INSTRUCTIONS = `You route messages from a US truck driver to a WhatsApp as
 often transcribed from voice, with typos. Pick the single intent that fits. Use "other" if unsure.
 arrived: at the facility, at the dock, checked in. left: loaded/unloaded, leaving, got paperwork.
 how_long: asks how long they waited or how much detention so far. email_broker: wants to ask the broker for detention money.
-warn_broker: wants to tell the broker they are still waiting. check_ratecon: wants a rate confirmation checked.`;
+warn_broker: wants to tell the broker they are still waiting. check_ratecon: wants a rate confirmation checked.
+Saying they arrived or left always counts as arrived/left. Otherwise pick an action only when the driver wants the bot
+to do it now. Questions, advice, telling about a new load, greetings,
+complaints and anything off topic are "other" (they get a real answer), e.g. "what if the broker won't pay detention?",
+"how much should I ask for 800 miles?", "took a load from Dallas to Atlanta for 2100" are all "other".
+help: asks what the bot can do.`;
 
 export async function understand(cfg: MuseConfig, text: string, stage: string | undefined): Promise<Intent> {
   const out = await museJson<{ intent: Intent }>(cfg, {

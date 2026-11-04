@@ -1,0 +1,15 @@
+# systemd user unit: ~/.config/systemd/user/ngrok.service
+# Gives the bot a fixed public HTTPS URL. NGROK_DOMAIN is the free static domain from the ngrok dashboard,
+# kept in ~/.config/ngrok.env (chmod 600) as NGROK_DOMAIN=xxx.ngrok-free.app. The authtoken lives in ngrok's own config.
+[Unit]
+Description=ngrok tunnel for Trucker Copilot
+After=network-online.target
+
+[Service]
+EnvironmentFile=%h/.config/ngrok.env
+ExecStart=/usr/bin/env ngrok http --url=${NGROK_DOMAIN} 8787
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

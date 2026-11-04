@@ -75,9 +75,19 @@ export function startServer(cfg: Config = loadConfig()) {
           context,
         ),
       transcribe: async (media) => transcribe(voice, (await downloadMedia(cfg, media.id)).data),
-      understand: (text, stage) => understand(muse, text, stage),
+      // Logs say what happened without the driver's words: intent, topic, suggested button.
+      understand: async (text, stage) => {
+        const intent = await understand(muse, text, stage);
+        console.log(`message ${msg.id}: ${msg.type} intent=${intent} stage=${stage ?? 'none'}`);
+        return intent;
+      },
       converse: async (waId, text, context) => {
+        const t0 = Date.now();
         const answer = await converse(muse, text, { ...context, history: recentTurns(waId) });
+        console.log(
+          `message ${msg.id}: answered on_topic=${answer.on_topic} suggest=${answer.suggest} ` +
+            `load_facts=${answer.load ? 'yes' : 'no'} ${Date.now() - t0}ms`,
+        );
         remember(waId, { role: 'driver', text }, { role: 'bot', text: answer.reply });
         return answer;
       },

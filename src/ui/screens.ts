@@ -2,7 +2,7 @@ import { computeDetention, freeTimeEndsAt, type DetentionTerms } from '../domain
 import type { BrokerReply, LoadStage, LoadSummary, RateconAnalysis, StopKind } from '../domain/types.ts';
 import { formatDuration, formatMoney, formatTime, LANGS, t, type Lang, type Strings } from '../i18n/index.ts';
 import { buttons, ctaUrl, list, locationRequest, paginate, text } from '../wa/builders.ts';
-import type { OutgoingMessage } from '../wa/types.ts';
+import type { Choice, OutgoingMessage } from '../wa/types.ts';
 import { ID, langId, langPageId, loadId } from './ids.ts';
 import { isOnSite, nextActions, withMenu } from './stage.ts';
 
@@ -320,6 +320,34 @@ export function confirmDelete(ctx: Ctx): OutgoingMessage[] {
 
 export function deleted(ctx: Ctx): OutgoingMessage[] {
   return [text(s(ctx).settings.deleted)];
+}
+
+/** Titles for the actions the assistant may offer under its answer. */
+function actionChoice(id: string, str: Strings): Choice | undefined {
+  const titles: Record<string, string> = {
+    [ID.rateconCheck]: str.menu.checkRatecon,
+    [ID.stopArrive]: str.stop.arrivedButton,
+    [ID.stopLeave]: str.stop.leftButton,
+    [ID.stopHowLong]: str.stop.howLong,
+    [ID.emailDraft]: str.email.writeToBroker,
+    [ID.loads]: str.menu.myLoads,
+  };
+  return titles[id] ? { id, title: titles[id] } : undefined;
+}
+
+/**
+ * Muse Spark's own answer to a question or a story. Under it: the action it suggests, what usually
+ * comes next at this stage, and "☰ Menu" last, so the driver can still tap instead of typing.
+ */
+export function assistantReply(ctx: Ctx, reply: string, suggested: string | undefined, stage?: LoadStage): OutgoingMessage[] {
+  const str = s(ctx);
+  const first = suggested ? actionChoice(suggested, str) : undefined;
+  const choices = [...(first ? [first] : []), ...nextActions(stage, str)].filter(
+    (c, i, all) => all.findIndex((o) => o.id === c.id) === i,
+  );
+  // Buttons carry at most 1024 characters of body; a longer answer goes as plain text first.
+  if ([...reply].length <= 1000) return [buttons(reply, withMenu(choices, str))];
+  return [text(reply), buttons('👇', withMenu(choices, str))];
 }
 
 export function help(ctx: Ctx, stage?: LoadStage): OutgoingMessage[] {

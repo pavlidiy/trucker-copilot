@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "try-ratecon": "tsx --env-file=.env src/try-ratecon.ts",
     "try-letter": "tsx --env-file=.env src/try-letter.ts",
-    "try-voice": "tsx --env-file=.env src/try-voice.ts"
+    "try-voice": "tsx --env-file=.env src/try-voice.ts",
+    "try-chat": "tsx --env-file=.env src/try-chat.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

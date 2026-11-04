@@ -54,6 +54,7 @@ const noMuse: Services = {
   async readBrokerAnswer() { throw new Error('not expected'); },
   async transcribe() { throw new Error('not expected'); },
   async understand() { return 'other'; },
+  async converse() { throw new Error('not expected'); },
   async sendNow() {},
 };
 const show = (msgs: Awaited<ReturnType<typeof route>>) => msgs.map(render).join('\n---\n');
@@ -183,4 +184,119 @@ test('voice note in Russian: transcribed, understood as "arrived", asks for loca
   assert.match(early.join(), /🎧 “я приехал на склад”/);
   assert.equal((await route(store, voice, new Date(), services)).at(-1)?.type, 'interactive');
   assert.ok(out.length > 0);
+});
+
+const noLoad = { broker: null, rate_usd: null, miles: null, pickup_city: null, delivery_city: null, detention_rate_usd: null, free_hours: null };
+
+test('a question gets an answer with next-step buttons, not the menu', async () => {
+  const { store } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'ru', onboarding_step: 'done', name: 'Ivan' });
+  let seen: Parameters<Services['converse']>[2] | undefined;
+  const services: Services = {
+    ...noMuse,
+    async converse(waId, t, context) {
+      seen = context;
+      assert.equal(waId, from);
+      assert.equal(t, 'что такое TONU?');
+      return { reply: 'TONU — это оплата, если груз отменили, когда вы уже приехали.', on_topic: true, suggest: 'check_ratecon', load: null };
+    },
+  };
+  const out = await route(store, text('что такое TONU?'), new Date(), services);
+  assert.equal(out.length, 1);
+  const shown = show(out);
+  assert.match(shown, /TONU — это оплата/);
+  assert.match(shown, /\[📄 Проверить рейт кон\]/);
+  assert.match(shown, /\[☰ Меню\]/);
+  assert.doesNotMatch(shown, /▾/); // no list menu
+  assert.equal(seen?.language, 'Russian');
+  assert.equal(seen?.loadContext, null);
+});
+
+test('a load told in words, without a rate con, is saved and detention uses its terms', async () => {
+  const { store, loads } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'en', onboarding_step: 'done' });
+  const services: Services = {
+    ...noMuse,
+    async converse() {
+      return {
+        reply: 'Got it. Is detention written in the rate con? When is your appointment?',
+        on_topic: true,
+        suggest: 'arrived',
+        load: { ...noLoad, broker: 'Echo Global', rate_usd: 2100, miles: 850, pickup_city: 'Dallas, TX', delivery_city: 'Atlanta, GA', detention_rate_usd: 40 },
+      };
+    },
+  };
+  const out = show(await route(store, text('took a load with Echo, 2100 for 850 miles Dallas to Atlanta, detention 40/h'), new Date(), services));
+  assert.match(out, /appointment/);
+  assert.match(out, /\[📍 I'm here\]/);
+  assert.equal(loads.length, 1);
+  assert.equal(loads[0]?.broker, 'Echo Global');
+  assert.equal(loads[0]?.rate_cents, 210000);
+  assert.equal(loads[0]?.detention_rate_cents, 4000);
+  assert.equal(loads[0]?.stage, 'booked');
+
+  await route(store, location(-84.4), new Date('2026-11-02T13:12:00Z'));
+  const left = show(await route(store, location(-84.4), new Date('2026-11-02T18:47:00Z')));
+  assert.match(left, /\$143\.33/); // 215 billable minutes × $40/h
+  assert.equal(loads.length, 1);
+});
+
+test('chat never overwrites what a checked rate con says', async () => {
+  const { store, loads } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'en', onboarding_step: 'done' });
+  const photo: InboundMessage = { from, id: `m${++n}`, timestamp: '0', type: 'image', image: { id: 'media1', mime_type: 'image/jpeg' } };
+  await route(store, photo, new Date(), { ...noMuse, async readRatecon() { return sample(); } });
+  const services: Services = {
+    ...noMuse,
+    async converse(_w, _t, context) {
+      assert.match(context.loadContext!, /rate con checked/);
+      return { reply: 'ok', on_topic: true, suggest: 'none', load: { ...noLoad, rate_usd: 9999, detention_rate_usd: 100 } };
+    },
+  };
+  await route(store, text('rate is 9999 and detention 100'), new Date(), services);
+  assert.equal(loads[0]?.rate_cents, 215000);
+  assert.equal(loads[0]?.detention_rate_cents, 5000);
+});
+
+test('"how long" with no open stop is answered, not sent to the menu', async () => {
+  const { store } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'en', onboarding_step: 'done' });
+  const services: Services = {
+    ...noMuse,
+    async understand() { return 'how_long'; },
+    async converse() { return { reply: 'You have no open stop. Tap I\'m here when you get to the dock.', on_topic: true, suggest: 'how_long', load: null }; },
+  };
+  const out = show(await route(store, text('how long am I waiting?'), new Date(), services));
+  assert.match(out, /no open stop/);
+  assert.doesNotMatch(out, /How long\?\]/); // the suggestion is dropped: there is no stop to time
+});
+
+test('text that is not the broker answer is still understood', async () => {
+  const { store } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'en', onboarding_step: 'done', awaiting: 'broker_answer' });
+  await store.createLoad({ wa_id: from, load_number: 'M-1', stage: 'claim_sent' });
+  const services: Services = {
+    ...noMuse,
+    async readBrokerAnswer() { return { is_broker_message: false, summary: '', meaning: '', offered_usd: null, agreed_full: false }; },
+    async converse() { return { reply: 'Brokers usually answer in 1-2 days. Forward their email when it comes.', on_topic: true, suggest: 'none', load: null }; },
+  };
+  assert.match(show(await route(store, text('when will the broker answer?'), new Date(), services)), /1-2 days/);
+});
+
+test('off-topic question gets an honest answer', async () => {
+  const { store } = memoryStore();
+  await route(store, text('Hi'));
+  await store.updateDriver(from, { lang: 'en', onboarding_step: 'done' });
+  const services: Services = {
+    ...noMuse,
+    async converse() { return { reply: 'I help with trucking work only, so I cannot pick a movie. I can check a rate con or count detention.', on_topic: false, suggest: 'none', load: null }; },
+  };
+  const out = show(await route(store, text('what movie should I watch'), new Date(), services));
+  assert.match(out, /trucking work only/);
+  assert.match(out, /\[📄 Check rate con\]/);
 });

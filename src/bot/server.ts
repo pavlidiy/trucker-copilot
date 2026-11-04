@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { loadConfig, type Config } from './config.ts';
 import { Db } from './db.ts';
+import { converse, type Turn } from '../ai/assistant.ts';
 import { readBrokerAnswer, writeLetter } from '../ai/email.ts';
 import { understand } from '../ai/intent.ts';
 import { readRatecon } from '../ai/ratecon.ts';
@@ -20,6 +21,16 @@ export function startServer(cfg: Config = loadConfig()) {
   const clock = () => new Date(started + (Date.now() - started) * cfg.clockScale);
   const muse = { apiKey: cfg.museApiKey, model: cfg.museModel };
   const voice = { apiKey: cfg.museApiKey, speed: cfg.voiceSpeed };
+  // Last few free-form turns per driver, so a leading question and its answer stay connected.
+  // In memory on purpose: losing it on restart costs one repeated question, nothing more.
+  const chats = new Map<string, { turns: Turn[]; at: number }>();
+  const recentTurns = (waId: string): Turn[] => {
+    const c = chats.get(waId);
+    return c && Date.now() - c.at < 3 * 3600_000 ? c.turns : [];
+  };
+  const remember = (waId: string, ...turns: Turn[]) => {
+    chats.set(waId, { turns: [...recentTurns(waId), ...turns].slice(-8), at: Date.now() });
+  };
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -65,6 +76,11 @@ export function startServer(cfg: Config = loadConfig()) {
         ),
       transcribe: async (media) => transcribe(voice, (await downloadMedia(cfg, media.id)).data),
       understand: (text, stage) => understand(muse, text, stage),
+      converse: async (waId, text, context) => {
+        const answer = await converse(muse, text, { ...context, history: recentTurns(waId) });
+        remember(waId, { role: 'driver', text }, { role: 'bot', text: answer.reply });
+        return answer;
+      },
       sendNow: send,
     };
     try {

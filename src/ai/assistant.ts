@@ -87,6 +87,8 @@ How to answer:
   a helper for truck drivers' work and cannot help with that, and say what you can help with. Greetings and thanks are on
   topic: answer warmly and briefly and say what you can do.
 - Never claim you did something (sent an email, logged a stop) — the driver does that with the buttons.
+- Never write internal names like check_ratecon, email_broker, arrived or how_long in the reply. The suggested action
+  appears as a button under your message, so say "tap the button below" in the driver's language instead.
 
 suggest: the one bot action that helps most right now, or "none". check_ratecon when they have or talk about a rate con;
 arrived when they are at or arriving at a shipper/receiver and no stop is open; left when a stop is open and they are
@@ -94,7 +96,8 @@ leaving; how_long when a stop is open and they ask about waiting; email_broker w
 broker and there is a load; loads when they ask about their loads.
 
 load: fill only when the driver gave concrete details of a load in this conversation (broker, rate, miles, cities,
-detention terms); copy only numbers they said, null for anything not said. Otherwise every field null.`;
+detention terms); copy only numbers they said, null for anything not said. Keep
+city and broker names as the driver wrote them. Otherwise every field null.`;
 
 export async function converse(cfg: MuseConfig, message: string, ctx: AssistantContext): Promise<AssistantReply> {
   const history = ctx.history.map((t) => `${t.role === 'driver' ? 'Driver' : 'You'}: ${t.text}`).join('\n');

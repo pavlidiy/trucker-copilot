@@ -4,6 +4,17 @@ WhatsApp AI co-pilot for US truck drivers whose English is weak. It reads the ra
 
 **Before vs. this hackathon.** Before: I had Truck Driver Helper, my profit-calculator app for US truckers (iOS/Android). It is not in this repo and not part of the submission. Built during the hackathon (Oct 26 – Nov 4, 2026), from zero: everything in this repo.
 
+## Try it live on WhatsApp
+
+**[Open the bot: wa.me/18329253256](https://wa.me/18329253256?text=Hi)** (or message **+1 832 925 3256** on WhatsApp)
+
+1. Send `Hi` and pick a language.
+2. Send a photo or PDF of a rate con (sample: [`test/fixtures/ratecon-sample.pdf`](test/fixtures/ratecon-sample.pdf)) and tap **Ask for changes**.
+3. Share your location ("I'm at the facility"), then share it again later ("I left") to get detention in dollars, and tap **Email broker**.
+4. Paste a broker reply, for example `Hi, we can pay $100 detention, please send the signed BOL with in/out times.` and tap **Accept $100**.
+
+You can also send a voice note in any language, like "I arrived at the facility". Demo video: https://youtu.be/I-_qmbcroR0
+
 Unpaid detention costs US drivers $1.1–1.3B a year (DOT OIG, 2018). Immigrant drivers lose more: they sign rate cons they can't fully read, and they don't argue with brokers by email.
 
 ## What the driver does
